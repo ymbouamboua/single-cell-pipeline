@@ -1,0 +1,24 @@
+single-cell-pipeline/
+├── .gitignore
+├── LICENSE
+├── README.md
+├── README.Rmd
+├── run_pipeline.R
+├── config/
+│   └── pipeline_config.example.yaml
+├── scripts/
+│   ├── 01_load_seurat.R
+│   ├── 02_add_demux.R
+│   ├── 03_run_qc.R
+│   ├── 04_decontaminate.R
+│   ├── 05_integrate.R
+│   └── 06_run_deg.R
+└── workflow/
+    ├── Snakefile
+    └── rules/
+        ├── load.smk
+        ├── demux.smk
+        ├── qc.smk
+        ├── decontaminate.smk
+        ├── integrate.smk
+        └── deg.smk

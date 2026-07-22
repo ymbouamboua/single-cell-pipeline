@@ -1,0 +1,303 @@
+import math
+import pandas as pd
+from pathlib import Path
+
+
+# ============================================================
+# Configuration validation
+# ============================================================
+
+REQUIRED_CONFIG_KEYS = [
+    "master_summary",
+    "outdir",
+    "workflow",
+]
+
+missing_config = [
+    key for key in REQUIRED_CONFIG_KEYS
+    if key not in config
+]
+
+if missing_config:
+    raise ValueError(
+        "Missing required configuration keys: "
+        + ", ".join(missing_config)
+    )
+
+
+# ============================================================
+# Global configuration
+# ============================================================
+
+MASTER_FILE = Path(config["master_summary"])
+OUTDIR = str(config.get("outdir", "results"))
+LOGDIR = str(config.get("logdir", "logs"))
+WORKFLOW = str(config.get("workflow", "basic")).lower()
+
+if not MASTER_FILE.exists():
+    raise FileNotFoundError(
+        f"Master summary file does not exist: {MASTER_FILE}"
+    )
+
+MASTER = pd.read_csv(MASTER_FILE)
+
+if "SampleID" not in MASTER.columns:
+    raise ValueError(
+        "master_summary.csv must contain a 'SampleID' column."
+    )
+
+if MASTER["SampleID"].isna().any():
+    raise ValueError(
+        "master_summary.csv contains missing SampleID values."
+    )
+
+if MASTER["SampleID"].duplicated().any():
+    duplicated = (
+        MASTER.loc[
+            MASTER["SampleID"].duplicated(keep=False),
+            "SampleID"
+        ]
+        .astype(str)
+        .tolist()
+    )
+
+    raise ValueError(
+        "Duplicated SampleID values detected: "
+        + ", ".join(sorted(set(duplicated)))
+    )
+
+
+# ============================================================
+# Helpers
+# ============================================================
+
+def as_bool(value, default=False):
+    """Safely convert configuration/table values to boolean."""
+
+    if value is None:
+        return default
+
+    if isinstance(value, bool):
+        return value
+
+    if isinstance(value, (int, float)):
+        if isinstance(value, float) and math.isnan(value):
+            return default
+        return bool(value)
+
+    value = str(value).strip().lower()
+
+    if value in {"true", "t", "yes", "y", "1"}:
+        return True
+
+    if value in {"false", "f", "no", "n", "0", ""}:
+        return False
+
+    return default
+
+
+def get_meta(sample, column, default=None):
+    """Retrieve one sample-specific value from master_summary.csv."""
+
+    row = MASTER.loc[MASTER["SampleID"] == sample]
+
+    if row.empty:
+        raise ValueError(f"Sample not found: {sample}")
+
+    if column not in MASTER.columns:
+        return default
+
+    value = row.iloc[0][column]
+
+    if pd.isna(value):
+        return default
+
+    return value
+
+
+def sample_enabled(sample):
+    """Determine whether a sample should be included."""
+
+    return as_bool(
+        get_meta(sample, "Include", True),
+        default=True
+    )
+
+
+def has_demux(sample):
+    """Return True when usable Demuxafy information is available."""
+
+    demux_dir = get_meta(sample, "Demuxafy_Dir", "")
+    bulk_tsv = get_meta(sample, "BulkMapping_TSV", "")
+
+    return bool(str(demux_dir).strip() or str(bulk_tsv).strip())
+
+
+def workflow_steps(workflow):
+    workflows = {
+        "basic": [
+            "load",
+            "qc",
+            "integrate",
+        ],
+        "demux": [
+            "load",
+            "demux",
+            "qc",
+            "integrate",
+        ],
+        "contam": [
+            "load",
+            "qc",
+            "contam",
+            "integrate",
+        ],
+        "full": [
+            "load",
+            "demux",
+            "qc",
+            "contam",
+            "integrate",
+            "deg",
+        ],
+    }
+
+    if workflow not in workflows:
+        raise ValueError(
+            f"Unknown workflow '{workflow}'. "
+            f"Allowed values: {', '.join(workflows)}"
+        )
+
+    return workflows[workflow]
+
+
+# ============================================================
+# Samples
+# ============================================================
+
+SAMPLES = [
+    str(sample)
+    for sample in MASTER["SampleID"].tolist()
+    if sample_enabled(sample)
+]
+
+if not SAMPLES:
+    raise ValueError(
+        "No samples are enabled in master_summary.csv."
+    )
+
+STEPS = workflow_steps(WORKFLOW)
+
+DEMUX_SAMPLES = [
+    sample for sample in SAMPLES
+    if has_demux(sample)
+]
+
+NON_DEMUX_SAMPLES = [
+    sample for sample in SAMPLES
+    if sample not in DEMUX_SAMPLES
+]
+
+
+# ============================================================
+# Input-selection functions
+# ============================================================
+
+def qc_input(sample):
+    """
+    Select the correct object entering QC.
+
+    Samples with Demuxafy information use the demultiplexed object.
+    Other samples use the original loaded object.
+    """
+
+    if "demux" in STEPS and sample in DEMUX_SAMPLES:
+        return (
+            f"{OUTDIR}/02_demuxed/"
+            f"{sample}_demuxed.rds"
+        )
+
+    return (
+        f"{OUTDIR}/01_loaded/"
+        f"{sample}_raw.rds"
+    )
+
+
+def integration_inputs():
+    """Return all per-sample objects entering integration."""
+
+    if "contam" in STEPS:
+        return expand(
+            f"{OUTDIR}/04_clean/{{sample}}_clean.rds",
+            sample=SAMPLES,
+        )
+
+    return expand(
+        f"{OUTDIR}/03_qc/{{sample}}_qc.rds",
+        sample=SAMPLES,
+    )
+
+
+# ============================================================
+# Final targets
+# ============================================================
+
+TARGETS = []
+
+TARGETS += expand(
+    f"{OUTDIR}/01_loaded/{{sample}}_raw.rds",
+    sample=SAMPLES,
+)
+
+if "demux" in STEPS and DEMUX_SAMPLES:
+    TARGETS += expand(
+        f"{OUTDIR}/02_demuxed/{{sample}}_demuxed.rds",
+        sample=DEMUX_SAMPLES,
+    )
+
+TARGETS += expand(
+    f"{OUTDIR}/03_qc/{{sample}}_qc.rds",
+    sample=SAMPLES,
+)
+
+TARGETS += expand(
+    f"{OUTDIR}/03_qc/QC_summary_{{sample}}.tsv",
+    sample=SAMPLES,
+)
+
+if "contam" in STEPS:
+    TARGETS += expand(
+        f"{OUTDIR}/04_clean/{{sample}}_clean.rds",
+        sample=SAMPLES,
+    )
+
+TARGETS += [
+    f"{OUTDIR}/05_integrated/integrated.rds",
+    f"{OUTDIR}/05_integrated/umap_overview.pdf",
+]
+
+if "deg" in STEPS:
+    TARGETS += [
+        f"{OUTDIR}/06_deg/deg_report.html",
+    ]
+
+
+# ============================================================
+# Final workflow rule
+# ============================================================
+
+rule all:
+    input:
+        TARGETS
+
+
+# ============================================================
+# Modular rule files
+# ============================================================
+
+include: "rules/load.smk"
+include: "rules/demux.smk"
+include: "rules/qc.smk"
+include: "rules/decontaminate.smk"
+include: "rules/integrate.smk"
+include: "rules/deg.smk"
