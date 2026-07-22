@@ -1,0 +1,5 @@
+SampleID,CellRanger_Dir,Species,Demuxafy_Dir,BulkMapping_TSV,DonorID,Include
+SAMPLE_POOL_1,data/SAMPLE_POOL_1,human,data/WS_demuxafy/SAMPLE_POOL_1,data/WS_demuxafy/SAMPLE_POOL_1_bulk_mapping/combined_results_with_bulk_mapping.tsv,,TRUE
+SAMPLE_POOL_2,data/SAMPLE_POOL_2,human,data/WS_demuxafy/SAMPLE_POOL_2,data/WS_demuxafy/SAMPLE_POOL_2_bulk_mapping/combined_results_with_bulk_mapping.tsv,,TRUE
+SAMPLE_SINGLE_1,data/SAMPLE_SINGLE_1,human,,,DONOR_1,TRUE
+SAMPLE_SINGLE_2,data/SAMPLE_SINGLE_2,human,,,DONOR_2,TRUE

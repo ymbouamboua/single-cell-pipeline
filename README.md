@@ -1,40 +1,46 @@
-Single-cell RNA-seq Automated Pipeline
+single-cell-pipeline: Automated Single-cell RNA-seq Pipeline
 ================
-Yvon Mbouamboua
-2026-06-05
 
-## Overview
+**single-cell-pipeline** is a modular and reproducible workflow for
+preprocessing and analyzing 10x Genomics single-cell RNA-seq data. It
+supports loading raw Cell Ranger outputs, optional donor demultiplexing,
+quality control, ambient RNA removal, data integration, and downstream
+differential expression analysis.
 
-An end-to-end automated pipeline for single-cell RNA-seq analysis from
-raw 10x Genomics matrices to integrated Seurat objects, differential
-expression analysis, pathway enrichment, and publication-ready reports.
+The pipeline can be executed either directly with **R** or through
+**Snakemake**, making it suitable for local workstations as well as
+HPC/SLURM environments.
 
-## Features
+------------------------------------------------------------------------
 
-- Automatic loading of 10x Genomics datasets (MTX or H5)
-- Optional demultiplexing integration (Demuxafy)
-- Automated QC filtering
-- Optional ambient RNA removal (DecontX / SoupX)
-- Batch correction and integration (Harmony, RPCA, CCA)
+# Features
+
+- Read 10x Genomics matrices (HDF5 or MTX)
+- Automatic Seurat object creation
+- Optional Demuxafy integration
+- Optional bulk genotype mapping
+- Automated quality control
+- Optional ambient RNA decontamination (SoupX / DecontX)
+- Dataset integration using Harmony, RPCA, CCA, Merge, or None
 - Differential expression analysis
-- Pathway enrichment analysis
-- HTML reporting
-- Interactive execution with R
-- Fully reproducible execution with Snakemake
+- Reproducible workflow with Snakemake
 - HPC/SLURM compatible
+- Modular step-by-step execution
 
-## Project Structure
+------------------------------------------------------------------------
+
+# Repository structure
 
 ``` text
-project/
-├── master_summary.csv
-├── Snakefile
-├── run_pipeline.R
+single-cell-pipeline/
 ├── README.Rmd
+├── README.md
+├── run_pipeline.R
+├── master_summary.example.csv
+├── .gitignore
 │
 ├── config/
-│   ├── pipeline_config.yaml
-│   └── contrasts.csv
+│   └── pipeline_config.example.yaml
 │
 ├── scripts/
 │   ├── 01_load_seurat.R
@@ -44,173 +50,454 @@ project/
 │   ├── 05_integrate.R
 │   └── 06_run_deg.R
 │
-├── logs/
-│
-└── results/
-    ├── 01_loaded/
-    ├── 02_demuxed/
-    ├── 03_qc/
-    ├── 04_clean/
-    ├── 05_integrated/
-    └── 06_deg/
+└── workflow/
+    ├── Snakefile
+    └── rules/
+        ├── load.smk
+        ├── demux.smk
+        ├── qc.smk
+        ├── decontaminate.smk
+        ├── integrate.smk
+        └── deg.smk
 ```
 
-## Workflows
-
-### Basic Workflow (Default)
+Project-specific files are stored outside the reusable pipeline
+repository:
 
 ``` text
-Load
-  ↓
-QC
-  ↓
-Integration
+project/
+├── config/
+│   └── pipeline_config.yaml
+├── master_summary.csv
+├── data/
+└── results/
+```
+
+------------------------------------------------------------------------
+
+# Workflows
+
+## Basic workflow
+
+``` text
+Load -> QC -> Integration
 ```
 
 Scripts:
 
-- 01_load_seurat.R
-- 03_run_qc.R
-- 05_integrate.R
+- `01_load_seurat.R`
+- `03_run_qc.R`
+- `05_integrate.R`
 
 ``` bash
 Rscript run_pipeline.R --workflow basic
 ```
 
-### Demultiplex Workflow
+## Demultiplex workflow
 
 ``` text
-Load
-  ↓
-Demultiplex
-  ↓
-QC
-  ↓
-Integration
+Load -> Demultiplex -> QC -> Integration
 ```
 
 Scripts:
 
-- 01_load_seurat.R
-- 02_add_demux.R
-- 03_run_qc.R
-- 05_integrate.R
+- `01_load_seurat.R`
+- `02_add_demux.R`
+- `03_run_qc.R`
+- `05_integrate.R`
 
 ``` bash
 Rscript run_pipeline.R --workflow demux
 ```
 
-### Full Workflow
+## Full workflow
 
 ``` text
-Load
-  ↓
-Demultiplex (optional)
-  ↓
-QC
-  ↓
-Decontamination
-  ↓
-Integration
-  ↓
-DEG
+Load -> Demultiplex (optional) -> Quality control -> Ambient RNA removal (optional) -> Integration -> Differential expression
 ```
 
 Scripts:
 
-- 01_load_seurat.R
-- 02_add_demux.R
-- 03_run_qc.R
-- 04_decontaminate.R
-- 05_integrate.R
-- 06_run_deg.R
+- `01_load_seurat.R`
+- `02_add_demux.R`
+- `03_run_qc.R`
+- `04_decontaminate.R`
+- `05_integrate.R`
+- `06_run_deg.R`
 
 ``` bash
 Rscript run_pipeline.R --workflow full
 ```
 
-## Quick Start
+------------------------------------------------------------------------
+
+# Quick start
+
+Run the complete workflow:
+
+``` bash
+Rscript run_pipeline.R --workflow full
+```
+
+Run the basic workflow:
 
 ``` bash
 Rscript run_pipeline.R --workflow basic
 ```
 
-``` bash
-Rscript run_pipeline.R --workflow full
-```
+Run only one sample:
 
 ``` bash
-Rscript run_pipeline.R --workflow basic --sample GSM7476098
+Rscript run_pipeline.R --workflow full --sample SAMPLE_01
 ```
 
-## Run Individual Steps
+Run selected steps:
 
 ``` bash
 Rscript run_pipeline.R --step load
+Rscript run_pipeline.R --step demux
 Rscript run_pipeline.R --step qc
+Rscript run_pipeline.R --step decontaminate
 Rscript run_pipeline.R --step integrate
 Rscript run_pipeline.R --step deg
 ```
 
-## Snakemake
+------------------------------------------------------------------------
+
+# Snakemake
+
+Dry run:
 
 ``` bash
 snakemake -n
+```
+
+Execute locally:
+
+``` bash
 snakemake --cores 8
+```
+
+Using Conda:
+
+``` bash
 snakemake --cores 8 --use-conda
 ```
 
-## master_summary.csv
+------------------------------------------------------------------------
+
+# Configuration
+
+The pipeline is configured using:
+
+``` text
+config/
+└── pipeline_config.yaml
+```
+
+A reusable configuration template is provided:
+
+``` text
+config/pipeline_config.example.yaml
+```
+
+Copy the template before starting a new project:
+
+``` bash
+cp config/pipeline_config.example.yaml config/pipeline_config.yaml
+```
+
+Then update project-specific paths, workflow parameters, and sample
+information.
+
+------------------------------------------------------------------------
+
+# Sample metadata
+
+Each project must include a `master_summary.csv` describing the samples
+to analyze.
 
 Required columns:
 
-| Column          | Description                      |
-|-----------------|----------------------------------|
-| SampleID        | Sample identifier                |
-| Species         | human or mouse                   |
-| CellRanger_Dir  | Path to 10x matrix directory     |
-| Demuxafy_Dir    | Optional Demuxafy directory      |
-| BulkMapping_TSV | Optional donor mapping           |
-| Min_Feat        | Minimum detected genes           |
-| Min_UMI         | Minimum UMIs                     |
-| Max_Mito        | Maximum mitochondrial percentage |
-| MAD_N           | MAD multiplier                   |
-| Rm_Dbl          | Run scDblFinder                  |
-| Dbl_Score       | Doublet threshold                |
+| Column | Description |
+|:---|:---|
+| `SampleID` | Unique sample identifier |
+| `CellRanger_Dir` | Path to the Cell Ranger output or 10x matrix directory |
+| `Species` | Species, such as `human` or `mouse` |
+| `Demuxafy_Dir` | Optional Demuxafy result directory |
+| `BulkMapping_TSV` | Optional bulk-genotype mapping table |
+| `DonorID` | Fixed donor ID for single-donor datasets |
+| `Include` | Whether the sample should be processed (`TRUE` or `FALSE`) |
 
-## Integration Methods
+An example file is provided:
 
-- Harmony (recommended)
+``` text
+master_summary.example.csv
+```
+
+Example:
+
+``` csv
+SampleID,CellRanger_Dir,Species,Demuxafy_Dir,BulkMapping_TSV,DonorID,Include
+SAMPLE_POOL_1,data/SAMPLE_POOL_1,human,data/WS_demuxafy/SAMPLE_POOL_1,data/WS_demuxafy/SAMPLE_POOL_1_bulk_mapping/combined_results_with_bulk_mapping.tsv,,TRUE
+SAMPLE_POOL_2,data/SAMPLE_POOL_2,human,data/WS_demuxafy/SAMPLE_POOL_2,data/WS_demuxafy/SAMPLE_POOL_2_bulk_mapping/combined_results_with_bulk_mapping.tsv,,TRUE
+SAMPLE_SINGLE_1,data/SAMPLE_SINGLE_1,human,,,DONOR_1,TRUE
+SAMPLE_SINGLE_2,data/SAMPLE_SINGLE_2,human,,,DONOR_2,TRUE
+```
+
+Pooled samples may use Demuxafy and bulk-genotype mapping. Single-donor
+samples may instead define a fixed donor using `DonorID`.
+
+------------------------------------------------------------------------
+
+# Loading 10x data
+
+The loading step supports:
+
+- `filtered_feature_bc_matrix.h5`
+- `raw_feature_bc_matrix.h5`
+- `filtered_feature_bc_matrix/`
+- `raw_feature_bc_matrix/`
+
+Example configuration:
+
+``` yaml
+load:
+  use_filtered: true
+  use_h5: true
+  min_cells: 3
+  min_features: 0
+  output_dir: "results/01_loaded"
+```
+
+Output:
+
+``` text
+results/01_loaded/<sample>_raw.rds
+```
+
+------------------------------------------------------------------------
+
+# Demultiplexing
+
+Demultiplexing is optional and supports:
+
+- Demuxafy consensus assignments
+- Bulk-genotype donor mapping
+- Direct donor assignment for single-donor samples
+- Removal of doublets
+- Removal of unassigned droplets
+
+Example configuration:
+
+``` yaml
+demux:
+  assignment_preference: "bulk"
+  demux_assignment_col: "MajoritySinglet_Individual_Assignment"
+  demux_class_col: "MajoritySinglet_DropletType"
+  bulk_assignment_col: "BulkSample"
+  remove_doublets: true
+  remove_unassigned: true
+  metadata_mode: "full"
+  output_dir: "results/02_demuxed"
+```
+
+Output:
+
+``` text
+results/02_demuxed/<sample>_demuxed.rds
+```
+
+------------------------------------------------------------------------
+
+# Quality control
+
+Supported QC threshold methods:
+
+- `MAD`
+- `fixed`
+- `none`
+
+Optional filters include:
+
+- mitochondrial percentage
+- ribosomal percentage
+- dropout fraction
+- scDblFinder doublet detection
+
+Example configuration:
+
+``` yaml
+qc:
+  method: "MAD"
+  min_feat: 200
+  min_umi: 500
+  mad_n: 5
+  max_mito: 5
+  calc_ribo: false
+  max_ribo: 3
+  calc_drop: false
+  max_drop: 0.95
+  rm_dbl: false
+  dbl_score: 0.5
+  output_dir: "results/03_qc"
+```
+
+Outputs:
+
+``` text
+results/03_qc/<sample>_qc.rds
+results/03_qc/QC_summary_<sample>.tsv
+```
+
+------------------------------------------------------------------------
+
+# Ambient RNA decontamination
+
+Ambient RNA correction is optional.
+
+Supported methods:
+
+- SoupX
+- DecontX
+
+Example configuration:
+
+``` yaml
+decontaminate:
+  enabled: false
+  method: "SoupX"
+  contamination_fraction: null
+  force_accept: false
+  output_dir: "results/04_decontaminated"
+```
+
+Output:
+
+``` text
+results/04_decontaminated/<sample>_clean.rds
+```
+
+------------------------------------------------------------------------
+
+# Integration methods
+
+Supported integration methods:
+
+- Harmony
 - RPCA
 - CCA
 - Merge
+- None
+
+Harmony is recommended when integrating multiple donors or batches while
+preserving the original RNA assay.
+
+Example:
 
 ``` yaml
-integration_method: Harmony
+integration:
+  method: "Harmony"
+  batch_col: "status"
+  dims: 30
+  npcs: 50
+  nfeatures: 3000
+  resolution: 0.5
+  seed: 1234
+  output_dir: "results/05_integrated"
 ```
 
-## Differential Expression
+Output:
+
+``` text
+results/05_integrated/integrated.rds
+```
+
+------------------------------------------------------------------------
+
+# Differential expression
+
+Supported differential expression strategies include:
+
+- Pseudobulk
+- Seurat `FindMarkers`
+- Both
+
+Example:
 
 ``` yaml
-deg_method: pseudo_bulk
+deg:
+  enabled: false
+  method: "pseudobulk"
+  assay: "RNA"
+  group_col: "seurat_clusters"
+  donor_col: "status"
+  sample_col: "sample"
+  min_pct: 0.1
+  logfc_threshold: 0.25
+  output_dir: "results/06_deg"
 ```
 
-Supported:
+------------------------------------------------------------------------
 
-- pseudo_bulk
-- FindMarkers
-- both
+# Runtime options
 
-## Reproducibility
+Example:
+
+``` yaml
+runtime:
+  parallel: false
+  n_cores: 2
+  verbose: true
+  overwrite: false
+```
+
+------------------------------------------------------------------------
+
+# Reproducibility
+
+For complete reproducibility, retain:
+
+- `pipeline_config.yaml`
+- `master_summary.csv`
+- `contrasts.csv`, when applicable
+- software versions
+- R package versions
+- generated summaries and logs
+
+The pipeline is compatible with `renv`:
 
 ``` r
+renv::init()
 renv::snapshot()
 ```
 
-Store:
+Restore a recorded environment with:
 
-- pipeline_config.yaml
-- master_summary.csv
-- contrasts.csv
+``` r
+renv::restore()
+```
 
-for complete reproducibility.
+------------------------------------------------------------------------
+
+# Rendering this README
+
+Render `README.Rmd` to `README.md` with:
+
+``` r
+rmarkdown::render("README.Rmd")
+```
+
+or:
+
+``` r
+knitr::knit("README.Rmd")
+```
+
+------------------------------------------------------------------------
+
+# License
+
+This project is distributed under the MIT License.
+
+------------------------------------------------------------------------

@@ -1,2 +1,184 @@
-project_dir: /path/to/project
-pipeline_dir: /path/to/single-cell-pipeline
+# ============================================================
+# config/pipeline_config.example.yaml
+#
+# Example configuration for scpipeline.
+#
+# Copy this file to:
+#   config/pipeline_config.yaml
+#
+# Then update project-specific paths and sample information.
+# ============================================================
+
+# ------------------------------------------------------------
+# General paths
+# ------------------------------------------------------------
+
+project_dir: "/path/to/your/project"
+pipeline_dir: "/path/to/scpipeline"
+results_dir: "results"
+master_summary: "master_summary.csv"
+
+# ------------------------------------------------------------
+# Workflow
+# ------------------------------------------------------------
+
+workflow: "full"
+
+steps:
+  - load
+  - demux
+  - qc
+  - decontaminate
+  - integrate
+  - deg
+
+# ------------------------------------------------------------
+# Samples
+# ------------------------------------------------------------
+
+samples:
+
+  SAMPLE_POOL_1:
+    cellranger: "data/SAMPLE_POOL_1"
+    species: "human"
+
+    demuxafy_file: "data/WS_demuxafy/SAMPLE_POOL_1/combine_majoritySinglet/combined_results_w_combined_assignments_clean.tsv"
+    bulk_mapping_file: "data/WS_demuxafy/SAMPLE_POOL_1_bulk_mapping/combined_results_with_bulk_mapping.tsv"
+
+  SAMPLE_POOL_2:
+    cellranger: "data/SAMPLE_POOL_2"
+    species: "human"
+
+    demuxafy_file: "data/WS_demuxafy/SAMPLE_POOL_2/combine_majoritySinglet/combined_results_w_combined_assignments_clean.tsv"
+    bulk_mapping_file: "data/WS_demuxafy/SAMPLE_POOL_2_bulk_mapping/combined_results_with_bulk_mapping.tsv"
+
+  SAMPLE_SINGLE_1:
+    cellranger: "data/SAMPLE_SINGLE_1"
+    species: "human"
+    fixed_donor: "DONOR_1"
+
+  SAMPLE_SINGLE_2:
+    cellranger: "data/SAMPLE_SINGLE_2"
+    species: "human"
+    fixed_donor: "DONOR_2"
+
+# ------------------------------------------------------------
+# Step 01: Load 10X data
+# ------------------------------------------------------------
+
+load:
+  use_filtered: true
+  use_h5: true
+
+  min_cells: 3
+  min_features: 0
+
+  output_dir: "results/01_loaded"
+
+# ------------------------------------------------------------
+# Step 02: Demultiplexing
+# ------------------------------------------------------------
+
+demux:
+  assignment_preference: "bulk"
+
+  demux_assignment_col: "MajoritySinglet_Individual_Assignment"
+  demux_class_col: "MajoritySinglet_DropletType"
+
+  bulk_assignment_col: "BulkSample"
+
+  remove_doublets: true
+  remove_unassigned: true
+
+  metadata_mode: "full"
+
+  output_dir: "results/02_demuxed"
+
+# ------------------------------------------------------------
+# Step 03: Quality control
+# ------------------------------------------------------------
+
+qc:
+  method: "MAD"
+
+  min_feat: 200
+  min_umi: 500
+  mad_n: 5
+
+  max_mito: 5
+
+  calc_ribo: false
+  max_ribo: 3
+
+  calc_drop: false
+  max_drop: 0.95
+
+  rm_dbl: false
+  dbl_score: 0.5
+
+  output_dir: "results/03_qc"
+
+# ------------------------------------------------------------
+# Step 04: Ambient RNA decontamination
+# ------------------------------------------------------------
+
+decontaminate:
+  enabled: false
+
+  method: "SoupX"
+
+  contamination_fraction: null
+  force_accept: false
+
+  output_dir: "results/04_decontaminated"
+
+# ------------------------------------------------------------
+# Step 05: Integration and clustering
+# ------------------------------------------------------------
+
+integration:
+  method: "Harmony"
+
+  batch_col: "status"
+
+  dims: 30
+  npcs: 50
+  nfeatures: 3000
+
+  resolution: 0.5
+  seed: 1234
+
+  output_dir: "results/05_integrated"
+
+# ------------------------------------------------------------
+# Step 06: Differential expression
+# ------------------------------------------------------------
+
+deg:
+  enabled: false
+
+  assay: "RNA"
+  slot: "data"
+
+  group_col: "seurat_clusters"
+  donor_col: "status"
+  sample_col: "sample"
+
+  test_use: "wilcox"
+
+  min_pct: 0.1
+  logfc_threshold: 0.25
+
+  only_pos: false
+
+  output_dir: "results/06_deg"
+
+# ------------------------------------------------------------
+# Runtime
+# ------------------------------------------------------------
+
+runtime:
+  parallel: false
+  n_cores: 2
+  verbose: true
+  overwrite: false
